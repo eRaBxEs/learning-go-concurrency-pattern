@@ -20,7 +20,7 @@ func main() {
 	}
 
 	exit := make(chan struct{}) // more like a structure to use for gracefully shutting down.
-	chM := merge1(ch1, ch2)
+	chM := merge2(ch1, ch2)
 
 	go func() {
 		for v := range chM {
@@ -63,6 +63,38 @@ func merge1(cs ...<-chan []string) <-chan []string {
 
 	return out
 
+}
+
+func merge2(cs ...<-chan []string) <-chan []string {
+	chans := len(cs)
+	wait := make(chan struct{}, chans)
+
+	out := make(chan []string)
+
+	send := func(c <-chan []string) {
+		defer func() { wait <- struct{}{} }()
+
+		for n := range c {
+			out <- n
+		}
+	}
+
+	for _, c := range cs {
+		go send(c)
+	}
+
+	go func() {
+		for range wait {
+			chans--
+			if chans == 0 {
+				break
+			}
+		}
+
+		close(out)
+	}()
+
+	return out
 }
 
 func read(file string) (<-chan []string, error) {
